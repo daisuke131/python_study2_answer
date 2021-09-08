@@ -1,0 +1,27 @@
+{
+  "[python]": {
+    "editor.tabSize": 4,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    },
+  },
+  "python.venvPath": "${workspaceFolder}/.venv",
+  "python.pythonPath": "${workspaceFolder}/.venv/Scripts/python",
+  "python.languageServer": "Pylance",
+  // "python.analysis.typeCheckingMode": "basic",
+  "python.linting.enabled": false,
+  "python.linting.pylintEnabled": false,
+  "python.formatting.provider": "black",
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    "--max-line-length",
+    "88",
+  ],
+  "python.linting.lintOnSave": true,
+  // "python.linting.mypyEnabled": true,
+  // "python.linting.mypyArgs": [
+  //   "--config-file",
+  //   "mypy.ini"
+  // ],
+}
