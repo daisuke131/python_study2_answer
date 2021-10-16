@@ -64,5 +64,8 @@ class Driver:
     def find_elements_by_xpath(self, s: str):
         return self.driver.find_elements_by_xpath(s)
 
+    def execute_script(self, s: str):
+        self.driver.execute_script(s)
+
     def quit(self) -> None:
         self.driver.quit()

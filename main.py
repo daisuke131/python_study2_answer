@@ -1,3 +1,4 @@
+import math
 from time import sleep
 
 import pandas as pd
@@ -7,15 +8,15 @@ from common.driver import Driver
 from common.logger import set_logger
 
 MYNAVI_URL = "https://tenshoku.mynavi.jp/list/"
+MYNAVI_PAGE_URL = "https://tenshoku.mynavi.jp/list/{query_word}/pg{page_count}/"
 log = set_logger()
 
 
 class Scrape:
     def __init__(self, search_word: str) -> None:
-        self.driver = Driver()
         self.search_word: str = search_word
         self.query_word: str = self.formatting_query_word(self.search_word)
-        self.query_url: str = MYNAVI_URL + self.query_word
+        self.page: int = 0
         self.df = pd.DataFrame()
 
     def formatting_query_word(self, search_word: str) -> str:
@@ -26,59 +27,53 @@ class Scrape:
             query_words.append("kw" + word)
         return "_".join(query_words)
 
-    def start_scraping(self):
-        log.info("========スクレイピング開始========")
-        if self.driver.get(self.query_url):
-            log.info("========1ページ目読み込み完了========")
+    def fetch_page_count(self) -> None:
+        log.info("========ページ数取得========")
+        driver = Driver()
+        driver.get(MYNAVI_URL + self.query_word)
         sleep(3)
         try:
             # ポップアップを閉じる
-            self.driver.execute_script('document.querySelector(".karte-close").click()')
+            driver.execute_script('document.querySelector(".karte-close").click()')
             sleep(1)
-            self.driver.execute_script('document.querySelector(".karte-close").click()')
+            driver.execute_script('document.querySelector(".karte-close").click()')
         except Exception:
             pass
-        self.fetch_scraping_data()
+        data_count = int(driver.find_element_by_css_selector(".result__num > em").text)
+        driver.quit()
+        self.page = math.ceil(data_count / 50)
+        log.info(f"{self.page}ページ")
 
-    def fetch_scraping_data(self):
-        data_count: int = 1
-        page_count: int = 2
-        while True:
-            corps_list = self.driver.find_elements_by_class_name(
-                "cassetteRecruit__content"
-            )
-            for corp in corps_list:
-                try:
-                    self.df = self.df.append(
-                        {
-                            "会社名": self.fetch_corp_name(corp),
-                            "勤務地": self.find_table_target_word(corp, "勤務地"),
-                            "給与": self.find_table_target_word(corp, "給与"),
-                        },
-                        ignore_index=True,
-                    )
-                    log.info(f"{data_count}件目完了")
-                except Exception:
-                    log.error(f"{data_count}件目失敗")
-                data_count += 1
-
-            # 次のページへ
-            next_page_links = self.driver.find_elements_by_class_name(
-                "iconFont--arrowLeft"
-            )
-            if len(next_page_links) > 0:
-                try:
-                    next_page_link = next_page_links[0].get_attribute("href")
-                    self.driver.get(next_page_link)
-                    sleep(3)
-                    log.info(f"========{page_count}ページ目読み込み完了========")
-                    page_count += 1
-                except Exception:
-                    log.error(f"========{page_count}ページ目読み込み失敗========")
-            else:
-                break
-        self.driver.quit()
+    def start_scraping(self):
+        log.info("========スクレイピング開始========")
+        for count in range(self.page):
+            page_count = count + 1
+            self.fetch_scraping_data(page_count)
         log.info("========スクレイピング終了========")
+
+    def fetch_scraping_data(self, page_count: int):
+        driver = Driver()
+        driver.get(
+            MYNAVI_PAGE_URL.format(query_word=self.query_word, page_count=page_count)
+        )
+        sleep(3)
+        data_count: int = 1
+        corps = driver.find_elements_by_css_selector(".cassetteRecruit__content")
+        for corp in corps:
+            try:
+                self.df = self.df.append(
+                    {
+                        "会社名": self.fetch_corp_name(corp),
+                        "勤務地": self.find_table_target_word(corp, "勤務地"),
+                        "給与": self.find_table_target_word(corp, "給与"),
+                    },
+                    ignore_index=True,
+                )
+                log.info(f"{page_count}ページ目{data_count}件目完了")
+            except Exception:
+                log.error(f"{page_count}ページ目{data_count}件目失敗")
+            data_count += 1
+        driver.quit()
 
     def fetch_corp_name(self, driver):
         try:
@@ -90,8 +85,10 @@ class Scrape:
     # テーブルからヘッダーで指定した内容を取得
     def find_table_target_word(self, driver, target: str):
         try:
-            table_headers = driver.find_elements_by_class_name("tableCondition__head")
-            table_bodies = driver.find_elements_by_class_name("tableCondition__body")
+            table_headers = driver.find_elements_by_css_selector(
+                ".tableCondition__head"
+            )
+            table_bodies = driver.find_elements_by_css_selector(".tableCondition__body")
             for table_header, table_body in zip(table_headers, table_bodies):
                 if table_header.text == target:
                     return table_body.text
@@ -114,6 +111,7 @@ def main():
     # 検索ワード入力
     search_word: str = input("検索ワード>>")
     scrape = Scrape(search_word)
+    scrape.fetch_page_count()
     scrape.start_scraping()
     scrape.write_csv()
 
